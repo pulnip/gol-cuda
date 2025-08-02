@@ -11,6 +11,7 @@ struct AppState{
 
     unsigned int vertexArray, vertexBuffer;
     GLuint program;
+    GLuint texture;
 };
 
 GLuint loadShader(GLenum type, const char* path) {
@@ -120,6 +121,8 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
         SDL_Log("Failed to initialize GLAD");
         return SDL_APP_FAILURE;
     }
+    glViewport(0, 0, 800, 600);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     SDL_GL_SetSwapInterval(1);
 
     unsigned int vertexArray, vertexBuffer;
@@ -128,19 +131,36 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
 
     glBindVertexArray(vertexArray);
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-    float lineVerts[] = {
-        -0.5f, -0.5f,
-         0.5f,  0.5f
+    float quadVerts[] = {
+        //  Pos      | UV
+       -1.0f, -1.0f,  0.0f, 0.0f,   // 왼쪽 아래
+        1.0f, -1.0f,  1.0f, 0.0f,   // 오른쪽 아래
+       -1.0f,  1.0f,  0.0f, 1.0f,   // 왼쪽 위
+        1.0f,  1.0f,  1.0f, 1.0f    // 오른쪽 위
     };
-    glBufferData(GL_ARRAY_BUFFER, sizeof(lineVerts), lineVerts, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(2*sizeof(float)));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
     auto prog = createProgram("vertex.glsl", "fragment.glsl");
+
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glFinish();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 800, 600, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    registerCudaTexture(texture);
+    initCellGrid(800, 600);
 
     app->window = window;
     app->context = context;
@@ -149,6 +169,10 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     app->vertexBuffer = vertexBuffer;
 
     app->program = prog;
+    app->texture = texture;
+
+    glUseProgram(prog);
+    glUniform1i(glGetUniformLocation(prog, "tex"), 0);
 
     *appState = app;
 
@@ -196,11 +220,19 @@ SDL_AppResult SDL_AppEvent([[maybe_unused]] void* appState,
 
 SDL_AppResult SDL_AppIterate(void* appState){
     auto app = static_cast<AppState*>(appState);
+
+    updateCellTexture();
+    updateCell();
+
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(app->program);
     glBindVertexArray(app->vertexArray);
-    glDrawArrays(GL_LINES, 0, 2);
+    // glDrawArrays(GL_LINES, 0, 2);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, app->texture);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     SDL_GL_SwapWindow(app->window);
     return SDL_APP_CONTINUE;

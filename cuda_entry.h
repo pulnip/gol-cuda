@@ -1,10 +1,16 @@
-#ifndef MY_CUDA_ENTRY_H
-#define MY_CUDA_ENTRY_H
+#pragma once
+
+#include <glad/glad.h>
 
 extern "C"
 {
     void printCudaDeviceInfo();
     void destroyCuda();
-}
 
-#endif // MY_CUDA_ENTRY_H
+    void initCellGrid(int width, int height);
+    void updateCell();
+    unsigned char* getCurrentCellBuffer();
+
+    void registerCudaTexture(GLuint texture);
+    void updateCellTexture();
+}

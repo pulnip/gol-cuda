@@ -1,7 +1,11 @@
 #version 460 core
 
-out vec4 color;
+in vec2 vUV;
+out vec4 FragColor;
 
-void main(){
-    color = vec4(1.0, 0.0, 0.0, 1.0);
+uniform sampler2D tex;
+
+void main() {
+    float value = texture(tex, vUV).r;
+    FragColor = vec4(value, value, value, 1.0);
 }
