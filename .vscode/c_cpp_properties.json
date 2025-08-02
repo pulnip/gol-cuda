@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "vendor/SDL/include",
-                "vendor/glad/include"
+                "vendor/glad_debug/include",
+                "vendor/glad_release/include"
             ],
             "defines": [],
             "cStandard": "c11",
