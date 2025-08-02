@@ -6,8 +6,9 @@
 #include <source_location>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include "cuda_util.cuh"
 
-static void checkCuda(cudaError_t error, std::source_location sl=std::source_location::current()){
+void checkCuda(cudaError_t error, std::source_location sl){
     if(error != cudaSuccess){
         fprintf(stderr, "CUDA error at %s:%d in %s: %s\n",
             sl.file_name(), sl.line(), sl.function_name(), cudaGetErrorString(error));
@@ -88,10 +89,6 @@ void printCudaDeviceInfo(){
         printf("  Maximum Grid Size (x,y,z):                     %d, %d, %d\n",
             deviceProp.maxGridSize[0], deviceProp.maxGridSize[1], deviceProp.maxGridSize[2]);
     }
-}
-
-void destroyCuda(){
-    checkCuda(cudaDeviceReset());
 }
 
 }

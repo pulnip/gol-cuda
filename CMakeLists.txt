@@ -17,13 +17,26 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_subdirectory(vendor/SDL EXCLUDE_FROM_ALL)
-add_library(glad_release STATIC vendor/glad_release/src/glad.c)
-target_include_directories(glad_release PUBLIC vendor/glad_release/include)
-add_library(glad_debug STATIC vendor/glad_debug/src/glad.c)
-target_include_directories(glad_debug PUBLIC vendor/glad_debug/include)
+add_library(glad_release STATIC
+    vendor/glad_release/src/glad.c
+)
+target_include_directories(glad_release PUBLIC
+    vendor/glad_release/include
+)
+add_library(glad_debug STATIC
+    vendor/glad_debug/src/glad.c
+)
+target_include_directories(glad_debug PUBLIC
+    vendor/glad_debug/include
+)
 
 add_library(${PROJECT_NAME}_KERNEL
     cuda_check.cu
+    cuda_cell.cu
+)
+target_include_directories(${PROJECT_NAME}_KERNEL PRIVATE
+    $<$<CONFIG:Debug>:${CMAKE_SOURCE_DIR}/vendor/glad_debug/include>
+    $<$<NOT:$<CONFIG:Debug>>:${CMAKE_SOURCE_DIR}/vendor/glad_release/include>
 )
 
 add_executable(${PROJECT_NAME}
