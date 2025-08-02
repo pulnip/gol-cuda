@@ -2,7 +2,9 @@
     "configurations": [
         {
             "name": "Win32",
-            "includePath": [],
+            "includePath": [
+                "vendor/SDL/include"
+            ],
             "defines": [],
             "cStandard": "c11",
             "cppStandard": "c++20",
