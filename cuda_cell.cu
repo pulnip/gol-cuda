@@ -60,7 +60,31 @@ void updateCellTexture() {
 }
 
 __global__ void updateKernel(unsigned char* current, unsigned char* next, int width, int height) {
-    // Game of Life Logic...
+int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= width || y >= height) return;
+
+    int count = 0;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            int nx = x + dx;
+            int ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+                int idx = ny * width + nx;
+                count += (current[idx] > 0); // 255이면 살아있음
+            }
+        }
+    }
+
+    int idx = y * width + x;
+    if (current[idx]) {
+        // 살아있는 셀
+        next[idx] = (count == 2 || count == 3) ? 255 : 0;
+    } else {
+        // 죽은 셀
+        next[idx] = (count == 3) ? 255 : 0;
+    }
 }
 
 void updateCell() {
