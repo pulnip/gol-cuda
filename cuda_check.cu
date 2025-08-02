@@ -7,13 +7,16 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-void checkCuda(cudaError_t error, std::source_location sl=std::source_location::current()){
+static void checkCuda(cudaError_t error, std::source_location sl=std::source_location::current()){
     if(error != cudaSuccess){
         fprintf(stderr, "CUDA error at %s:%d in %s: %s\n",
             sl.file_name(), sl.line(), sl.function_name(), cudaGetErrorString(error));
         std::exit(1);
     }
 }
+
+extern "C"
+{
 
 void printCudaDeviceInfo(){
     int deviceCount = 0;
@@ -87,9 +90,8 @@ void printCudaDeviceInfo(){
     }
 }
 
-int main(){
-    printCudaDeviceInfo();
+void destroyCuda(){
     checkCuda(cudaDeviceReset());
+}
 
-    return 0;
 }
