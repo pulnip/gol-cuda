@@ -3,7 +3,8 @@
         {
             "name": "Win32",
             "includePath": [
-                "vendor/SDL/include"
+                "vendor/SDL/include",
+                "vendor/glad/include"
             ],
             "defines": [],
             "cStandard": "c11",
