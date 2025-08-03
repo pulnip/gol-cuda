@@ -21,6 +21,8 @@ struct AppState{
     unsigned int vertexArray, vertexBuffer;
     GLuint program;
     GLuint texture;
+
+    float zoom = 1.0f;
 };
 
 GLuint loadShader(GLenum type, const std::string& path){
@@ -210,13 +212,23 @@ static SDL_AppResult _handle_key_event([[maybe_unused]] void* appState,
 
 
 SDL_AppResult SDL_AppEvent(void* appState, SDL_Event* event){
+    auto app = static_cast<AppState*>(appState);
     ImGui_ImplSDL3_ProcessEvent(event);
+
     switch(event->type){
     case SDL_EVENT_QUIT:
         SDL_Log("SDL_EVENT_QUIT");
         return SDL_APP_SUCCESS;
     case SDL_EVENT_KEY_DOWN:
-        return _handle_key_event(appState, event->key.scancode);        
+        return _handle_key_event(appState, event->key.scancode);
+    case SDL_EVENT_MOUSE_MOTION:
+        break;
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        break;
+    case SDL_EVENT_MOUSE_WHEEL:
+        float factor = (event->wheel.y > 0 ? 1.1f : 0.9f);
+        app->zoom *= factor;
+        break;
     }
 
     return SDL_APP_CONTINUE;
@@ -255,11 +267,14 @@ SDL_AppResult SDL_AppIterate(void* appState){
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(app->program);
+
     glBindVertexArray(app->vertexArray);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, app->texture);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    glUniform1f(glGetUniformLocation(app->program, "uZoom"), app->zoom);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
