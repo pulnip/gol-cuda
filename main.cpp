@@ -6,6 +6,9 @@
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL_main.h>
 #include <glad/glad.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_opengl3.h>
 #include "cuda_entry.h"
 
 struct AppState{
@@ -167,6 +170,14 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     registerTexture(texture);
     initCell(CELL_WIDTH, CELL_HEIGHT);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    ImGui_ImplSDL3_InitForOpenGL(window, context);
+    ImGui_ImplOpenGL3_Init();
+
     app->window = window;
     app->context = context;
 
@@ -199,6 +210,7 @@ static SDL_AppResult _handle_key_event([[maybe_unused]] void* appState,
 
 
 SDL_AppResult SDL_AppEvent(void* appState, SDL_Event* event){
+    ImGui_ImplSDL3_ProcessEvent(event);
     switch(event->type){
     case SDL_EVENT_QUIT:
         SDL_Log("SDL_EVENT_QUIT");
@@ -225,12 +237,24 @@ SDL_AppResult SDL_AppIterate(void* appState){
     glBindTexture(GL_TEXTURE_2D, app->texture);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+    ImGui::ShowDemoWindow(); // Show demo window! :)
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
     SDL_GL_SwapWindow(app->window);
     return SDL_APP_CONTINUE;
 }
 
 void SDL_AppQuit(void* appState, [[maybe_unused]] SDL_AppResult result){
     auto app = static_cast<AppState*>(appState);
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
 
     SDL_DestroyWindow(app->window);
     delete app;

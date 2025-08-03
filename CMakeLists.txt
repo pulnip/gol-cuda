@@ -16,19 +16,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+list(APPEND CMAKE_PREFIX_PATH ${CMAK_CURRENT_LIST_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
+set(RENDER_BACKEND "OpenGL")
+include(cmake/config.cmake)
 add_subdirectory(vendor/SDL EXCLUDE_FROM_ALL)
-add_library(glad_release STATIC
-    vendor/glad_release/src/glad.c
-)
-target_include_directories(glad_release PUBLIC
-    vendor/glad_release/include
-)
-add_library(glad_debug STATIC
-    vendor/glad_debug/src/glad.c
-)
-target_include_directories(glad_debug PUBLIC
-    vendor/glad_debug/include
-)
+set(ImGui_RENDER_BACKEND ${RENDER_BACKEND})
+find_package(ImGui REQUIRED)
 
 add_library(${PROJECT_NAME}_KERNEL
     cuda_util.cu
@@ -50,6 +45,6 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${PROJECT_NAME}_KERNEL
     SDL3::SDL3
-    $<$<CONFIG:Debug>:glad_debug>
-    $<$<NOT:$<CONFIG:Debug>>:glad_release>
+    glad
+    ImGui
 )

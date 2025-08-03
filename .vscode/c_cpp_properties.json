@@ -5,7 +5,8 @@
             "includePath": [
                 "vendor/SDL/include",
                 "vendor/glad_debug/include",
-                "vendor/glad_release/include"
+                "vendor/imgui",
+                "vendor/imgui/backends"
             ],
             "defines": [],
             "cStandard": "c11",
