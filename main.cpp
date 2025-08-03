@@ -225,26 +225,32 @@ SDL_AppResult SDL_AppEvent(void* appState, SDL_Event* event){
 SDL_AppResult SDL_AppIterate(void* appState){
     auto app = static_cast<AppState*>(appState);
 
-
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
     static bool paused = false;
-    if(ImGui::Button(paused ? "Play" : "pause"))
+    if(ImGui::Button(paused ? "Play" : "pause")){
         paused = !paused;
-
-    if(!paused){
+        syncCell();
         updateTexture();
-        updateCell();
     }
-
     ImGui::SameLine();
     if(ImGui::Button("Init")){
         initCell(CELL_WIDTH, CELL_HEIGHT);
         updateTexture();
     }
 
+    static int updatePerSecond = 60;
+    static uint64_t lastUpdate = SDL_GetTicks();
+    ImGui::SliderInt("fps", &updatePerSecond, 1, 60);
+    uint64_t delayMs = 1'000 / updatePerSecond;
+
+    if(!paused && SDL_GetTicks()-lastUpdate > delayMs){
+        updateTexture();
+        updateCell();
+        lastUpdate = SDL_GetTicks();
+    }
 
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -254,7 +260,6 @@ SDL_AppResult SDL_AppIterate(void* appState){
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, app->texture);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

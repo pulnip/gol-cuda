@@ -9,6 +9,7 @@ extern "C"
 
     void initCell(int width, int height);
     void updateCell();
+    void syncCell();
 
     void registerTexture(GLuint texture);
     void updateTexture();

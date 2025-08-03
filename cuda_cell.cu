@@ -91,9 +91,8 @@ void initCell(int width, int height){
     checkCuda(cudaGetLastError());
     checkCuda(cudaDeviceSynchronize());
 
-    if(needToAlloc){
-        checkCuda(cudaMemcpy(dev_curr, dev_prev, size, cudaMemcpyDeviceToDevice));
-    }
+    if(needToAlloc)
+        syncCell();
 }
 
 void updateCell(){
@@ -102,6 +101,11 @@ void updateCell(){
 
     updateKernel<<<blocks, threads>>>(dev_prev, dev_curr, gWidth, gHeight);
     std::swap(dev_prev, dev_curr);
+}
+
+void syncCell(){
+    checkCuda(cudaMemcpy(dev_curr, dev_prev, gWidth*gHeight,
+        cudaMemcpyDeviceToDevice));
 }
 
 void registerTexture(GLuint texture){
