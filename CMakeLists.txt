@@ -31,6 +31,7 @@ target_include_directories(glad_debug PUBLIC
 )
 
 add_library(${PROJECT_NAME}_KERNEL
+    cuda_util.cu
     cuda_check.cu
     cuda_cell.cu
 )

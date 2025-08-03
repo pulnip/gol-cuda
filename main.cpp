@@ -1,4 +1,7 @@
 #include <stdio.h>
+#include <fstream>
+#include <print>
+#include <sstream>
 #include <SDL3/SDL.h>
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL_main.h>
@@ -14,40 +17,33 @@ struct AppState{
     GLuint texture;
 };
 
-GLuint loadShader(GLenum type, const char* path) {
-    // 1. 파일 열기
-    FILE* file = fopen(path, "rb");
-    if (!file) {
-        printf("Failed to open shader file: %s\n", path);
+GLuint loadShader(GLenum type, const std::string& path){
+    std::ifstream file(path, std::ios::in);
+    if (!file.is_open()){
+        std::println("Failed to open shader file: {}", path);
         return 0;
     }
 
-    // 2. 파일 크기 알아내고 버퍼 만들기
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    char* source = (char*)malloc(length + 1);
-    fread(source, 1, length, file);
-    source[length] = '\0'; // 널문자 추가!
-    fclose(file);
+    std::stringstream buffer;
+    buffer << file.rdbuf();
 
-    // 3. OpenGL에 셰이더 만들고 소스 등록
+    std::string source = buffer.str();
+    const char* sourcePtr = source.c_str();
+
+    // compile shader
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, (const char**)&source, NULL);
+    glShaderSource(shader, 1, &sourcePtr, NULL);
     glCompileShader(shader);
-    free(source);
 
-    // 4. 컴파일 에러 체크
     GLint compiled = 0;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
-    if (!compiled) {
+    if(!compiled){
         GLint logLength = 0;
         glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0) {
-            char* log = (char*)malloc(logLength);
-            glGetShaderInfoLog(shader, logLength, NULL, log);
-            printf("Shader compile error in %s:\n%s\n", path, log);
-            free(log);
+        if(logLength > 0){
+            std::string log(logLength, '\0');
+            glGetShaderInfoLog(shader, logLength, NULL, log.data());
+            std::println("Shader compile error in {}: {}", path, log);
         }
         glDeleteShader(shader);
         return 0;
@@ -56,7 +52,7 @@ GLuint loadShader(GLenum type, const char* path) {
     return shader;
 }
 
-GLuint createProgram(const char* vertPath, const char* fragPath){
+GLuint createProgram(const std::string& vertPath, const std::string& fragPath){
     GLuint vert = loadShader(GL_VERTEX_SHADER, vertPath);
     GLuint frag = loadShader(GL_FRAGMENT_SHADER, fragPath);
 
@@ -70,11 +66,10 @@ GLuint createProgram(const char* vertPath, const char* fragPath){
     if(!linked){
         GLint logLength = 0;
         glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logLength);
-        if (logLength > 0){
-            char* log = (char*)malloc(logLength);
-            glGetProgramInfoLog(prog, logLength, NULL, log);
-            printf("Program link error:\n%s\n", log);
-            free(log);
+        if(logLength > 0){
+            std::string log(logLength, '\0');
+            glGetProgramInfoLog(prog, logLength, NULL, log.data());
+            std::println("Program link error: {}", log);
         }
         glDeleteProgram(prog);
         return 0;
@@ -106,11 +101,15 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+        SDL_GL_CONTEXT_PROFILE_CORE);
 
-    SDL_WindowFlags flags = SDL_WINDOW_TRANSPARENT | SDL_WINDOW_BORDERLESS | SDL_WINDOW_OPENGL;
+    constexpr int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
+    SDL_WindowFlags flags = SDL_WINDOW_OPENGL |
+        SDL_WINDOW_TRANSPARENT | SDL_WINDOW_BORDERLESS;
 
-    auto window = SDL_CreateWindow("GoL-CUDA", 800, 600, flags);
+    auto window = SDL_CreateWindow("GoL-CUDA",
+        WINDOW_WIDTH, WINDOW_HEIGHT, flags);
     if(window == nullptr){
         SDL_Log("Couldn't create window: %s", SDL_GetError());
         return SDL_APP_FAILURE;
@@ -121,7 +120,7 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
         SDL_Log("Failed to initialize GLAD");
         return SDL_APP_FAILURE;
     }
-    glViewport(0, 0, 800, 600);
+    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     SDL_GL_SetSwapInterval(1);
 
@@ -133,34 +132,40 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
     float quadVerts[] = {
         //  Pos      | UV
-       -1.0f, -1.0f,  0.0f, 0.0f,   // 왼쪽 아래
-        1.0f, -1.0f,  1.0f, 0.0f,   // 오른쪽 아래
-       -1.0f,  1.0f,  0.0f, 1.0f,   // 왼쪽 위
-        1.0f,  1.0f,  1.0f, 1.0f    // 오른쪽 위
+       -1.0f, -1.0f,  0.0f, 0.0f,   // Bottom-Left
+        1.0f, -1.0f,  1.0f, 0.0f,   // Bottom-Right
+       -1.0f,  1.0f,  0.0f, 1.0f,   //    Top-Left
+        1.0f,  1.0f,  1.0f, 1.0f    //    Top-Right
     };
-    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts), quadVerts, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVerts),
+        quadVerts, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,
+        4*sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(2*sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,
+        4*sizeof(float), (void*)(2*sizeof(float)));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
     auto prog = createProgram("vertex.glsl", "fragment.glsl");
 
+    constexpr auto CELL_WIDTH = 800, CELL_HEIGHT = 600;
+
     GLuint texture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
     glFinish();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 800, 600, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, CELL_WIDTH, CELL_HEIGHT, 0,
+        GL_RED, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    registerCudaTexture(texture);
-    initCellGrid(800, 600);
+    registerTexture(texture);
+    initCell(CELL_WIDTH, CELL_HEIGHT);
 
     app->window = window;
     app->context = context;
@@ -179,24 +184,13 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     return SDL_APP_CONTINUE;
 }
 
-static SDL_AppResult _handle_key_event([[maybe_unused]] void* ctx,
+static SDL_AppResult _handle_key_event([[maybe_unused]] void* appState,
     SDL_Scancode key_code)
 {
     switch(key_code){
     /* Quit. */
     case SDL_SCANCODE_ESCAPE:
-    case SDL_SCANCODE_Q:
         return SDL_APP_SUCCESS;
-    case SDL_SCANCODE_R:
-        break;
-    case SDL_SCANCODE_RIGHT:
-        break;
-    case SDL_SCANCODE_UP:
-        break;
-    case SDL_SCANCODE_LEFT:
-        break;
-    case SDL_SCANCODE_DOWN:
-        break;
     default:
         break;
     }
@@ -204,15 +198,13 @@ static SDL_AppResult _handle_key_event([[maybe_unused]] void* ctx,
 }
 
 
-SDL_AppResult SDL_AppEvent([[maybe_unused]] void* appState,
-    SDL_Event* event)
-{
+SDL_AppResult SDL_AppEvent(void* appState, SDL_Event* event){
     switch(event->type){
     case SDL_EVENT_QUIT:
         SDL_Log("SDL_EVENT_QUIT");
         return SDL_APP_SUCCESS;
     case SDL_EVENT_KEY_DOWN:
-        return _handle_key_event(nullptr, event->key.scancode);        
+        return _handle_key_event(appState, event->key.scancode);        
     }
 
     return SDL_APP_CONTINUE;
@@ -221,14 +213,13 @@ SDL_AppResult SDL_AppEvent([[maybe_unused]] void* appState,
 SDL_AppResult SDL_AppIterate(void* appState){
     auto app = static_cast<AppState*>(appState);
 
-    updateCellTexture();
+    updateTexture();
     updateCell();
 
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(app->program);
     glBindVertexArray(app->vertexArray);
-    // glDrawArrays(GL_LINES, 0, 2);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, app->texture);

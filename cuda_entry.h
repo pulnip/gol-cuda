@@ -7,10 +7,9 @@ extern "C"
     void printCudaDeviceInfo();
     void destroyCuda();
 
-    void initCellGrid(int width, int height);
+    void initCell(int width, int height);
     void updateCell();
-    unsigned char* getCurrentCellBuffer();
 
-    void registerCudaTexture(GLuint texture);
-    void updateCellTexture();
+    void registerTexture(GLuint texture);
+    void updateTexture();
 }

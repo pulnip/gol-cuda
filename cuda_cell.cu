@@ -4,32 +4,16 @@
 #include <cuda_gl_interop.h>
 #include "cuda_entry.h"
 #include "cuda_util.cuh"
+#include <curand_kernel.h>
 
-constexpr int WIDTH = 800;
-constexpr int HEIGHT = 600;
-constexpr int SIZE = WIDTH * HEIGHT;
+int gWidth, gHeight;
 
 static unsigned char* dev_prev = nullptr;
 static unsigned char* dev_curr = nullptr;
 
 static cudaGraphicsResource* cudaTexResource = nullptr;
 
-void initCellGrid(int width, int height) {
-    if (dev_prev || dev_curr) return;
-
-    checkCuda(cudaMalloc(&dev_prev, SIZE));
-    checkCuda(cudaMalloc(&dev_curr, SIZE));
-
-    unsigned char* h_init = new unsigned char[SIZE];
-    for (int i = 0; i < SIZE; ++i)
-        h_init[i] = (rand() & 1) ? 255 : 0; // use 0 or 255 so GL_R8 shows visible white/black
-
-    checkCuda(cudaMemcpy(dev_prev, h_init, SIZE, cudaMemcpyHostToDevice));
-    checkCuda(cudaMemcpy(dev_curr, h_init, SIZE, cudaMemcpyHostToDevice));
-    delete[] h_init;
-}
-
-void destroyCuda() {
+void destroyCuda(){
     checkCuda(cudaFree(dev_prev));
     checkCuda(cudaFree(dev_curr));
     dev_prev = nullptr;
@@ -38,7 +22,81 @@ void destroyCuda() {
     checkCuda(cudaDeviceReset());
 }
 
-void registerCudaTexture(GLuint texture){
+__global__
+void initKernel(unsigned char* grid, int width, int height){
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    if(x >= width || y >= height)
+        return;
+
+    int idx = y * width + x;
+    curandState state;
+    curand_init(clock64(), idx, 0, &state);
+    grid[idx] = (curand(&state) & 1) ? 255 : 0;
+}
+
+__global__
+void updateKernel(unsigned char* current, unsigned char* next, int width, int height){
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+    if(x >= width || y >= height)
+        return;
+
+    int count = 0;
+    for(int dy = -1; dy <= 1; ++dy){
+        for(int dx = -1; dx <= 1; ++dx){
+            if(dx == 0 && dy == 0)
+                continue;
+            int nx = (x + dx) % width;
+            int ny = (y + dy) % height;
+
+            int idx = ny*width + nx;
+            // Alive if positive
+            count += (current[idx] > 0);
+        }
+    }
+
+    // Rule of Game of Life
+    int idx = y*width + x;
+    if(current[idx]){
+        // if Alive
+        next[idx] = (count==2 || count==3) ? 255 : 0;
+    } else {
+        // if Dead
+        next[idx] = (count==3) ? 255 : 0;
+    }
+}
+
+void initCell(int width, int height){
+    if(dev_prev || dev_curr)
+        return;
+
+    gWidth = width;
+    gHeight = height;
+
+    int size = width * height;
+
+    checkCuda(cudaMalloc(&dev_prev, size));
+    checkCuda(cudaMalloc(&dev_curr, size));
+
+    dim3 threads(16, 16);
+    dim3 blocks((width + 15) / 16, (height + 15) / 16);
+    initKernel<<<blocks, threads>>>(dev_prev, width, height);
+    checkCuda(cudaGetLastError());
+    checkCuda(cudaDeviceSynchronize());
+
+    checkCuda(cudaMemcpy(dev_curr, dev_prev, size, cudaMemcpyDeviceToDevice));
+}
+
+void updateCell(){
+    dim3 threads(16, 16);
+    dim3 blocks((gWidth + 15)/16, (gHeight + 15)/16);
+
+    updateKernel<<<blocks, threads>>>(dev_prev, dev_curr, gWidth, gHeight);
+    std::swap(dev_prev, dev_curr);
+}
+
+void registerTexture(GLuint texture){
     glBindTexture(GL_TEXTURE_2D, texture);
     glFinish();
     checkCuda(cudaGraphicsGLRegisterImage(&cudaTexResource,
@@ -46,55 +104,15 @@ void registerCudaTexture(GLuint texture){
         cudaGraphicsRegisterFlagsWriteDiscard));
 }
 
-void updateCellTexture() {
+void updateTexture(){
     cudaArray_t array;
     checkCuda(cudaGraphicsMapResources(1, &cudaTexResource));
     checkCuda(cudaGraphicsSubResourceGetMappedArray(&array,
         cudaTexResource, 0, 0));
 
-    const size_t widthBytes = WIDTH * sizeof(unsigned char);
+    const size_t widthBytes = gWidth * sizeof(unsigned char);
     checkCuda(cudaMemcpy2DToArray(array, 0, 0, dev_prev,
-        widthBytes, widthBytes, HEIGHT, cudaMemcpyDeviceToDevice));
+        widthBytes, widthBytes, gHeight, cudaMemcpyDeviceToDevice));
 
     checkCuda(cudaGraphicsUnmapResources(1, &cudaTexResource));
-}
-
-__global__ void updateKernel(unsigned char* current, unsigned char* next, int width, int height) {
-int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-    if (x >= width || y >= height) return;
-
-    int count = 0;
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            if (dx == 0 && dy == 0) continue;
-            int nx = x + dx;
-            int ny = y + dy;
-            if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
-                int idx = ny * width + nx;
-                count += (current[idx] > 0); // 255이면 살아있음
-            }
-        }
-    }
-
-    int idx = y * width + x;
-    if (current[idx]) {
-        // 살아있는 셀
-        next[idx] = (count == 2 || count == 3) ? 255 : 0;
-    } else {
-        // 죽은 셀
-        next[idx] = (count == 3) ? 255 : 0;
-    }
-}
-
-void updateCell() {
-    dim3 threads(16, 16);
-    dim3 blocks((WIDTH + 15)/16, (HEIGHT + 15)/16);
-
-    updateKernel<<<blocks, threads>>>(dev_prev, dev_curr, WIDTH, HEIGHT);
-    std::swap(dev_prev, dev_curr);
-}
-
-unsigned char* getCurrentCellBuffer() {
-    return dev_prev;
 }
