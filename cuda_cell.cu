@@ -68,16 +68,22 @@ void updateKernel(unsigned char* current, unsigned char* next, int width, int he
 }
 
 void initCell(int width, int height){
-    if(dev_prev || dev_curr)
-        return;
-
-    gWidth = width;
-    gHeight = height;
-
     int size = width * height;
+    bool needToAlloc = (!dev_prev && !dev_curr) ||
+        (width != gWidth) || (height != gHeight);
 
-    checkCuda(cudaMalloc(&dev_prev, size));
-    checkCuda(cudaMalloc(&dev_curr, size));
+    if(needToAlloc){
+        if(!dev_prev)
+            checkCuda(cudaFree(dev_prev));
+        if(!dev_curr)
+            checkCuda(cudaFree(dev_curr));
+
+        checkCuda(cudaMalloc(&dev_prev, size));
+        checkCuda(cudaMalloc(&dev_curr, size));
+
+        gWidth = width;
+        gHeight = height;
+    }
 
     dim3 threads(16, 16);
     dim3 blocks((width + 15) / 16, (height + 15) / 16);
@@ -85,7 +91,9 @@ void initCell(int width, int height){
     checkCuda(cudaGetLastError());
     checkCuda(cudaDeviceSynchronize());
 
-    checkCuda(cudaMemcpy(dev_curr, dev_prev, size, cudaMemcpyDeviceToDevice));
+    if(needToAlloc){
+        checkCuda(cudaMemcpy(dev_curr, dev_prev, size, cudaMemcpyDeviceToDevice));
+    }
 }
 
 void updateCell(){

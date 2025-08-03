@@ -11,6 +11,9 @@
 #include <imgui_impl_opengl3.h>
 #include "cuda_entry.h"
 
+constexpr int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
+constexpr auto CELL_WIDTH = 800, CELL_HEIGHT = 600;
+
 struct AppState{
     SDL_Window* window;
     SDL_GLContext context;
@@ -107,7 +110,6 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
         SDL_GL_CONTEXT_PROFILE_CORE);
 
-    constexpr int WINDOW_WIDTH = 800, WINDOW_HEIGHT = 600;
     SDL_WindowFlags flags = SDL_WINDOW_OPENGL |
         SDL_WINDOW_TRANSPARENT | SDL_WINDOW_BORDERLESS;
 
@@ -154,8 +156,6 @@ SDL_AppResult SDL_AppInit([[maybe_unused]] void** appState,
     glBindVertexArray(0);
 
     auto prog = createProgram("vertex.glsl", "fragment.glsl");
-
-    constexpr auto CELL_WIDTH = 800, CELL_HEIGHT = 600;
 
     GLuint texture;
     glGenTextures(1, &texture);
@@ -225,8 +225,26 @@ SDL_AppResult SDL_AppEvent(void* appState, SDL_Event* event){
 SDL_AppResult SDL_AppIterate(void* appState){
     auto app = static_cast<AppState*>(appState);
 
-    updateTexture();
-    updateCell();
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+
+    static bool paused = false;
+    if(ImGui::Button(paused ? "Play" : "pause"))
+        paused = !paused;
+
+    if(!paused){
+        updateTexture();
+        updateCell();
+    }
+
+    ImGui::SameLine();
+    if(ImGui::Button("Init")){
+        initCell(CELL_WIDTH, CELL_HEIGHT);
+        updateTexture();
+    }
+
 
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -237,10 +255,6 @@ SDL_AppResult SDL_AppIterate(void* appState){
     glBindTexture(GL_TEXTURE_2D, app->texture);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL3_NewFrame();
-    ImGui::NewFrame();
-    ImGui::ShowDemoWindow(); // Show demo window! :)
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
