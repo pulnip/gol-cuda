@@ -52,18 +52,31 @@ void updateKernel(unsigned char* current, unsigned char* next, int width, int he
 
             int idx = ny*width + nx;
             // Alive if positive
-            count += (current[idx] > 0);
+            count += (current[idx]==255);
         }
     }
 
     // Rule of Game of Life
     int idx = y*width + x;
-    if(current[idx]){
+    if(current[idx]==255){
         // if Alive
-        next[idx] = (count==2 || count==3) ? 255 : 0;
-    } else {
+        if(count==2 || count==3)
+            next[idx] = 255;
+        else{
+            int newval = int(current[idx]) - 16;
+            newval = newval > 0 ? newval : 0;
+            next[idx] = newval;
+        }
+    }
+    else{
         // if Dead
-        next[idx] = (count==3) ? 255 : 0;
+        if(count==3)
+            next[idx] = 255;
+        else{
+            int newval = int(current[idx]) - 16;
+            newval = newval > 0 ? newval : 0;
+            next[idx] = newval;
+        }
     }
 }
 
